@@ -21,3 +21,34 @@ html, body {
   overflow: hidden;
   font-family: 'M PLUS Rounded 1c', sans-serif;
 }
+
+@keyframes xmbFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes xmbFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* PSP boot — black panels part from the centre line */
+@keyframes bootOpenUp {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-100%); }
+}
+
+@keyframes bootOpenDown {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+@keyframes bootLineSpread {
+  from { opacity: 1; transform: scaleY(1); }
+  to   { opacity: 0; transform: scaleY(60); }
+}
+
+@keyframes bootPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}

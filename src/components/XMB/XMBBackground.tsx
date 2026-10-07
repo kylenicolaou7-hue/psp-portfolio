@@ -1,28 +1,29 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface XMBBackgroundProps {
-  isRippleActive: boolean;
+  // PIC1-style image that replaces the waves while an item is highlighted
+  backgroundImage?: string;
 }
 
-export default function XMBBackground({ isRippleActive }: XMBBackgroundProps) {
+export default function XMBBackground({ backgroundImage }: XMBBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number>(0);
   const timeRef = useRef<number>(0);
-  const [showOverlay, setShowOverlay] = useState(false);
+  const pausedRef = useRef(false);
 
-  // 500ms delay then fade in
+  // Stop drawing once the image has fully covered the waves — saves GPU
   useEffect(() => {
-    if (isRippleActive) {
-      const timer = setTimeout(() => setShowOverlay(true), 500);
-      return () => clearTimeout(timer);
-    } else {
-      setShowOverlay(false);
-    }
-  }, [isRippleActive]);
+    if (!backgroundImage) return;
+    const timer = setTimeout(() => { pausedRef.current = true; }, 1000);
+    return () => {
+      clearTimeout(timer);
+      pausedRef.current = false;
+    };
+  }, [backgroundImage]);
 
-  // Canvas animation — pause when ripple is active
+  // Canvas animation
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -37,8 +38,8 @@ export default function XMBBackground({ isRippleActive }: XMBBackgroundProps) {
     window.addEventListener('resize', resize);
 
     const draw = () => {
-      // Stop drawing when ripple image is showing — saves GPU
-      if (isRippleActive) return;
+      frameRef.current = requestAnimationFrame(draw);
+      if (pausedRef.current) return;
 
       timeRef.current += 0.004;
       const t = timeRef.current;
@@ -108,8 +109,6 @@ export default function XMBBackground({ isRippleActive }: XMBBackgroundProps) {
       bottomDark.addColorStop(1, 'rgba(0,0,0,0.4)');
       ctx.fillStyle = bottomDark;
       ctx.fillRect(0, 0, w, h);
-
-      frameRef.current = requestAnimationFrame(draw);
     };
 
     draw();
@@ -118,11 +117,11 @@ export default function XMBBackground({ isRippleActive }: XMBBackgroundProps) {
       cancelAnimationFrame(frameRef.current);
       window.removeEventListener('resize', resize);
     };
-  }, [isRippleActive]);
+  }, []);
 
   return (
     <>
-      {/* WAVE CANVAS */}
+      {/* WAVE CANVAS — fades out 500ms after a background image is set */}
       <canvas
         ref={canvasRef}
         style={{
@@ -131,22 +130,24 @@ export default function XMBBackground({ isRippleActive }: XMBBackgroundProps) {
           zIndex: 0,
           width: '100%',
           height: '100%',
-          opacity: showOverlay ? 0 : 1,
-          transition: 'opacity 0.5s ease',
+          opacity: backgroundImage ? 0 : 1,
+          transition: backgroundImage ? 'opacity 0.5s ease 0.5s' : 'opacity 0.5s ease',
         }}
       />
 
-      {/* RIPPLE BACKGROUND IMAGE — only mounts when ripple is active */}
-      {isRippleActive && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          zIndex: 1,
-          opacity: showOverlay ? 1 : 0,
-          transition: 'opacity 0.5s ease',
-        }}>
+      {/* BACKGROUND IMAGE — only mounts while an item with a preview is highlighted */}
+      {backgroundImage && (
+        <div
+          key={backgroundImage}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 1,
+            animation: 'xmbFadeIn 0.5s ease 0.5s both',
+          }}
+        >
           <img
-            src="/images/ripple.png"
+            src={backgroundImage}
             alt=""
             style={{
               width: '100%',

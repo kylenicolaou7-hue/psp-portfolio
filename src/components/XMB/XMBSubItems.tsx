@@ -1,29 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-interface SubItem {
-  label: string;
-  sublabel?: string;
-  link?: string;
-  group?: string;
-  icon?: string;
-}
+import type { XMBItem } from '@/data/xmb';
 
 interface XMBSubItemsProps {
-  items: SubItem[];
+  items: XMBItem[];
   activeItem: number;
-  categoryIndex: number;
-  totalCategories: number;
-  isRippleActive: boolean;
 }
+
+// Preview box proportions — PSP ICON1 was 310×180
+const PREVIEW_WIDTH = 1.6;
+const PREVIEW_HEIGHT = 0.93;
 
 export default function XMBSubItems({
   items,
   activeItem,
-  categoryIndex,
-  totalCategories,
-  isRippleActive,
 }: XMBSubItemsProps) {
   // All vh based — scales with screen height
   const ICON_SIZE_VH = 14;
@@ -35,7 +26,6 @@ export default function XMBSubItems({
   const [iconPx, setIconPx] = useState(144);
   const [itemStepPx, setItemStepPx] = useState(180);
   const [activePx, setActivePx] = useState(405);
-  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     const update = () => {
@@ -50,15 +40,6 @@ export default function XMBSubItems({
   }, []);
 
   const containerLeft = ACTIVE_ANCHOR_X - iconPx / 2;
-
-  useEffect(() => {
-    if (isRippleActive) {
-      const timer = setTimeout(() => setShowPreview(true), 500);
-      return () => clearTimeout(timer);
-    } else {
-      setShowPreview(false);
-    }
-  }, [isRippleActive]);
 
   return (
     <div style={{
@@ -75,6 +56,7 @@ export default function XMBSubItems({
         const offset = idx - activeItem;
         const absOffset = Math.abs(offset);
         const isActive = offset === 0;
+        const showPreview = isActive && !!item.preview;
 
         const opacity = isActive
           ? 1
@@ -116,15 +98,15 @@ export default function XMBSubItems({
               justifyContent: 'center',
             }}>
 
-              {/* DISC ICON */}
+              {/* ICON — gives way to the preview after 500ms */}
               <div style={{
                 position: 'absolute',
                 inset: 0,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                opacity: isActive && showPreview && isRippleActive ? 0 : 1,
-                transition: 'opacity 0.5s ease',
+                opacity: showPreview ? 0 : 1,
+                transition: showPreview ? 'opacity 0.5s ease 0.5s' : 'opacity 0.25s ease',
                 filter: isActive
                   ? 'brightness(1.1) drop-shadow(0 0 16px rgba(255,255,255,0.6))'
                   : 'brightness(0.4)',
@@ -140,18 +122,20 @@ export default function XMBSubItems({
                 />
               </div>
 
-              {/* VIDEO — only mounts after 500ms */}
-              {showPreview && isRippleActive && isActive && (
+              {/* PREVIEW VIDEO — plays in the icon slot, like a PSP game's ICON1 */}
+              {showPreview && (
                 <div style={{
                   position: 'absolute',
-                  left: `-${containerLeft}px`,
-                  width: `${containerLeft + iconPx}px`,
-                  height: `${iconPx}px`,
+                  right: 0,
+                  top: '50%',
+                  width: `${Math.round(iconPx * PREVIEW_WIDTH)}px`,
+                  height: `${Math.round(iconPx * PREVIEW_HEIGHT)}px`,
+                  transform: 'translateY(-50%)',
                   borderRadius: '4px',
                   overflow: 'hidden',
                   border: '1px solid rgba(255,255,255,0.3)',
                   boxShadow: '0 0 16px rgba(255,255,255,0.15)',
-                  animation: 'previewFadeIn 0.5s ease forwards',
+                  animation: 'xmbFadeIn 0.5s ease 0.5s both',
                 }}>
                   <video
                     autoPlay
@@ -165,8 +149,9 @@ export default function XMBSubItems({
                       objectPosition: 'center 40%',
                     }}
                   >
-                    <source src="/videos/webmripple.webm" type="video/webm" />
-                    <source src="/videos/finaloutcome.mp4" type="video/mp4" />
+                    {item.preview!.video.map((src) => (
+                      <source key={src} src={src} type={src.endsWith('.webm') ? 'video/webm' : 'video/mp4'} />
+                    ))}
                   </video>
                 </div>
               )}
@@ -237,13 +222,6 @@ export default function XMBSubItems({
           </div>
         );
       })}
-
-      <style>{`
-        @keyframes previewFadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }

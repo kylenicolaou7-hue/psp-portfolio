@@ -25,7 +25,7 @@ export default function XMBStatusBar() {
       display: 'flex',
       alignItems: 'center',
       gap: '0.6rem',
-      zIndex: 10,
+      zIndex: 16, // stays above the info panel, like the PSP
       fontFamily: "'M PLUS Rounded 1c', sans-serif",
       fontSize: '0.6rem',
       fontWeight: 300,

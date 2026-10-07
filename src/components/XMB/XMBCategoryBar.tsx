@@ -11,20 +11,16 @@ interface Category {
 interface XMBCategoryBarProps {
   categories: Category[];
   activeIndex: number;
-  isRippleActive: boolean;
 }
 
 export default function XMBCategoryBar({
   categories,
   activeIndex,
-  isRippleActive,
 }: XMBCategoryBarProps) {
   const ICON_SIZE_VH = 14;   // vh units — scales with height
   const ICON_SPACING_VH = 22;
   const ACTIVE_ANCHOR_X = 250;
-  const barShift = ACTIVE_ANCHOR_X - (activeIndex * (ICON_SPACING_VH * 16) + (ICON_SIZE_VH * 16) / 2);
 
-  const [showPreview, setShowPreview] = useState(false);
   const [iconPx, setIconPx] = useState(144);
   const [spacingPx, setSpacingPx] = useState(220);
 
@@ -41,15 +37,6 @@ export default function XMBCategoryBar({
   }, []);
 
   const barShiftPx = ACTIVE_ANCHOR_X - (activeIndex * spacingPx + iconPx / 2);
-
-  useEffect(() => {
-    if (isRippleActive) {
-      const timer = setTimeout(() => setShowPreview(true), 500);
-      return () => clearTimeout(timer);
-    } else {
-      setShowPreview(false);
-    }
-  }, [isRippleActive]);
 
   return (
     <>
@@ -83,7 +70,6 @@ export default function XMBCategoryBar({
           const absOffset = Math.abs(offset);
           const isActive = offset === 0;
           const opacity = isActive ? 1 : Math.max(0.25, 1 - absOffset * 0.25);
-          const showVideoPreview = isActive && isRippleActive && cat.id === 'works';
 
           return (
             <div
@@ -126,15 +112,13 @@ export default function XMBCategoryBar({
                 justifyContent: 'center',
               }}>
 
-                {/* DISC ICON — fades out when preview shows */}
+                {/* ICON */}
                 <div style={{
                   position: 'absolute',
                   inset: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: showVideoPreview && showPreview ? 0 : 1,
-                  transition: 'opacity 0.5s ease',
                   pointerEvents: 'none',
                   filter: isActive
                     ? 'drop-shadow(0 0 20px rgba(255,255,255,0.7)) brightness(1.1)'
@@ -150,42 +134,10 @@ export default function XMBCategoryBar({
                     }}
                   />
                 </div>
-
-                {/* VIDEO PREVIEW — fades in over disc */}
-                {isRippleActive && cat.id === 'works' && isActive && (
-                  <div style={{
-                    position: 'absolute',
-                    width: `${iconPx * 1.25}px`,
-                    height: `${iconPx * 0.78}px`,
-                    borderRadius: '4px',
-                    overflow: 'hidden',
-                    border: '1px solid rgba(255,255,255,0.35)',
-                    boxShadow: '0 0 20px rgba(255,255,255,0.15)',
-                    opacity: showPreview ? 1 : 0,
-                    transition: 'opacity 0.5s ease',
-                  }}>
-                    <video
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        objectPosition: 'center 40%',
-                      }}
-                    >
-                      <source src="/videos/webmripple.webm" type="video/webm" />
-                      <source src="/videos/finaloutcome.mp4" type="video/mp4" />
-                    </video>
-                  </div>
-                )}
-
               </div>
 
               {/* REFLECTION */}
-              {isActive && !showVideoPreview && (
+              {isActive && (
                 <div style={{
                   position: 'absolute',
                   top: `${iconPx}px`,

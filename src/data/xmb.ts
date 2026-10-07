@@ -1,4 +1,26 @@
-export const XMB_CATEGORIES = [
+import type { XMBInfo } from '@/components/XMB/XMBInfoPanel';
+
+export interface XMBItem {
+  label: string;
+  sublabel?: string;
+  group?: string;
+  icon?: string;
+  link?: string;
+  // Enter opens /projects/[slug]
+  slug?: string;
+  // Enter opens the slide-out information panel
+  info?: XMBInfo;
+  preview?: { video: string[]; background: string };
+}
+
+export interface XMBCategory {
+  id: string;
+  label: string;
+  icon: string;
+  items: XMBItem[];
+}
+
+export const XMB_CATEGORIES: XMBCategory[] = [
   {
     id: 'theme',
     label: 'THEME',
@@ -63,10 +85,18 @@ export const XMB_CATEGORIES = [
     icon: '/icons/house.png',
     items: [
       {
-        label: 'Who I Am',
+        label: 'About Me',
         sublabel: 'UX/UI · Interactive Designer',
         group: 'ABOUT',
         icon: '/icons/memory.png',
+        // Opens in the slide-out information panel instead of a case study
+        info: {
+          heading: 'ABOUT',
+          title: 'Kyle Nicolaou',
+          subtitle: 'UX/UI · Interactive Designer',
+          image: 'Kyle Nicolaou',
+          body: "Hello, I'm Kyle — a 22 year old interactive designer focused on creating eye-capturing visual and user focused design in the interactive space.",
+        },
       },
       {
         label: 'My Story',
@@ -109,14 +139,19 @@ export const XMB_CATEGORIES = [
       {
         label: 'Ripple',
         sublabel: 'Live Adobe Brief · 2025',
-        link: '/projects/ripple',
+        slug: 'ripple',
         group: 'UNIVERSITY',
         icon: '/icons/disc.png',
+        // Shown on highlight, like a PSP game's ICON1 (video) + PIC1 (background)
+        preview: {
+          video: ['/videos/webmripple.webm', '/videos/finaloutcome.mp4'],
+          background: '/images/ripple.png',
+        },
       },
       {
         label: 'OutThere Seltzers',
         sublabel: 'Branding · 2025',
-        link: '/projects/outthere',
+        slug: 'outthere',
         group: 'UNIVERSITY',
         icon: '/icons/disc.png',
       },
