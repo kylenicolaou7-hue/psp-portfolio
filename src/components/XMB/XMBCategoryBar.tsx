@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ACTIVE_ANCHOR_X, ICON_SIZE_VH, expandedShift } from './layout';
 
 interface Category {
   id: string;
@@ -11,15 +12,18 @@ interface Category {
 interface XMBCategoryBarProps {
   categories: Category[];
   activeIndex: number;
+  // An item is open: slide left and hide the other categories
+  expanded?: boolean;
+  onSelect?: (index: number) => void;
 }
 
 export default function XMBCategoryBar({
   categories,
   activeIndex,
+  expanded = false,
+  onSelect,
 }: XMBCategoryBarProps) {
-  const ICON_SIZE_VH = 14;   // vh units — scales with height
   const ICON_SPACING_VH = 22;
-  const ACTIVE_ANCHOR_X = 250;
 
   const [iconPx, setIconPx] = useState(144);
   const [spacingPx, setSpacingPx] = useState(220);
@@ -36,7 +40,8 @@ export default function XMBCategoryBar({
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  const barShiftPx = ACTIVE_ANCHOR_X - (activeIndex * spacingPx + iconPx / 2);
+  const barShiftPx = ACTIVE_ANCHOR_X - (activeIndex * spacingPx + iconPx / 2)
+    - (expanded ? expandedShift(iconPx) : 0);
 
   return (
     <>
@@ -69,12 +74,15 @@ export default function XMBCategoryBar({
           const offset = idx - activeIndex;
           const absOffset = Math.abs(offset);
           const isActive = offset === 0;
-          const opacity = isActive ? 1 : Math.max(0.25, 1 - absOffset * 0.25);
+          const opacity = isActive ? 1 : expanded ? 0 : Math.max(0.25, 1 - absOffset * 0.25);
 
           return (
             <div
               key={cat.id}
+              onClick={() => onSelect?.(idx)}
               style={{
+                cursor: 'pointer',
+                pointerEvents: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',

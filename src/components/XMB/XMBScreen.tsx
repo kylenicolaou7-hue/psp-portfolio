@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { XMB_CATEGORIES } from '@/data/xmb';
 import XMBBackground from './XMBBackground';
@@ -12,6 +12,13 @@ import XMBBoot from './XMBBoot';
 import { useXMBSound } from '@/hooks/useXMBSound';
 
 const LAUNCH_FADE_MS = 600;
+
+// Wheel / trackpad → categories. A step fires once enough scroll has built up;
+// after that, further scrolling is ignored until the gesture pauses or a repeat
+// interval passes, so one flick doesn't race through every category.
+const WHEEL_STEP = 40;        // px of accumulated scroll per step
+const WHEEL_GAP_MS = 150;     // pause that ends a gesture
+const WHEEL_REPEAT_MS = 350;  // min time between steps within one gesture
 
 // Locate a project in the menu so returning from a case study lands back on it
 function findProject(slug?: string) {
@@ -50,6 +57,32 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
     setInfoOpen(false);
   }, [playClick]);
 
+  const canNavigate = booted && !launching && !infoOpen;
+
+  const moveCategory = useCallback((next: number) => {
+    if (next < 0 || next >= XMB_CATEGORIES.length || next === activeCategory) return;
+    playClick();
+    setActiveCategory(next);
+    setActiveItem(0);
+  }, [activeCategory, playClick]);
+
+  const moveItem = useCallback((next: number) => {
+    if (next < 0 || next >= currentItems.length || next === activeItem) return;
+    playClick();
+    setActiveItem(next);
+  }, [activeItem, currentItems.length, playClick]);
+
+  // Enter / click on the selected item: launch its case study or open its info panel
+  const openActive = useCallback(() => {
+    if (activeSlug) {
+      playClick();
+      setLaunching(true);
+    } else if (activeInfo) {
+      playClick();
+      setInfoOpen(true);
+    }
+  }, [activeSlug, activeInfo, playClick]);
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!booted || launching) return;
 
@@ -61,18 +94,6 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
       }
       return;
     }
-
-    const moveCategory = (next: number) => {
-      if (next < 0 || next >= XMB_CATEGORIES.length) return;
-      playClick();
-      setActiveCategory(next);
-      setActiveItem(0);
-    };
-    const moveItem = (next: number) => {
-      if (next < 0 || next >= currentItems.length) return;
-      playClick();
-      setActiveItem(next);
-    };
 
     switch (e.key) {
       case 'ArrowLeft':
@@ -101,16 +122,51 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
         break;
       case 'Enter':
         e.preventDefault();
-        if (activeSlug) {
-          playClick();
-          setLaunching(true);
-        } else if (activeInfo) {
-          playClick();
-          setInfoOpen(true);
-        }
+        openActive();
         break;
     }
-  }, [booted, launching, infoOpen, closeInfo, activeCategory, activeItem, currentItems.length, activeSlug, activeInfo, playClick]);
+  }, [booted, launching, infoOpen, closeInfo, activeCategory, activeItem, moveCategory, moveItem, openActive]);
+
+  // Mouse: clicking a category selects it; clicking an item selects it, and
+  // clicking the already-selected item opens it (like pressing Enter)
+  const clickCategory = useCallback((index: number) => {
+    if (canNavigate) moveCategory(index);
+  }, [canNavigate, moveCategory]);
+
+  const clickItem = useCallback((index: number) => {
+    if (!canNavigate) return;
+    if (index === activeItem) openActive();
+    else moveItem(index);
+  }, [canNavigate, activeItem, openActive, moveItem]);
+
+  // Wheel / trackpad scrolling moves along the categories
+  const wheelRef = useRef({ acc: 0, lastEvent: 0, stepAt: 0 });
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return; // pinch-zoom
+      const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      // Stop a sideways two-finger swipe from triggering browser back/forward
+      if (horizontal) e.preventDefault();
+      if (!canNavigate) return;
+
+      const w = wheelRef.current;
+      const now = performance.now();
+      const gap = now - w.lastEvent;
+      w.lastEvent = now;
+      if (gap >= WHEEL_GAP_MS) w.acc = 0;
+      if (now - w.stepAt < WHEEL_REPEAT_MS && gap < WHEEL_GAP_MS) return;
+
+      const scale = e.deltaMode === 1 ? 16 : 1; // line-based wheels (Firefox)
+      w.acc += (horizontal ? e.deltaX : e.deltaY) * scale;
+      if (Math.abs(w.acc) >= WHEEL_STEP) {
+        moveCategory(activeCategory + Math.sign(w.acc));
+        w.acc = 0;
+        w.stepAt = now;
+      }
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, [canNavigate, activeCategory, moveCategory]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -156,23 +212,33 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
         zIndex: 5,
         pointerEvents: 'none',
         opacity: booted ? 1 : 0,
-        transition: 'opacity 0.6s ease',
+        transition: 'opacity 0.35s ease',
       }}>
         {/* CATEGORY ICONS */}
         <XMBCategoryBar
           categories={XMB_CATEGORIES}
           activeIndex={activeCategory}
+          expanded={infoOpen}
+          onSelect={clickCategory}
         />
 
         {/* SUB ITEMS */}
         <XMBSubItems
           items={currentItems}
           activeItem={activeItem}
+          expanded={infoOpen}
+          onSelect={clickItem}
         />
       </div>
 
       {/* INFO PANEL */}
-      <XMBInfoPanel info={activeInfo} open={infoOpen} onClose={closeInfo} />
+      <XMBInfoPanel
+        label={activeItemData?.label ?? ''}
+        icon={activeItemData?.icon}
+        info={activeInfo}
+        open={infoOpen}
+        onClose={closeInfo}
+      />
 
       {/* BOTTOM NAV HINT */}
       <div style={{
@@ -187,17 +253,12 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
         color: 'rgba(255,255,255,0.2)',
         whiteSpace: 'nowrap',
         zIndex: 16,
-        opacity: booted ? 1 : 0,
-        transition: 'opacity 0.6s ease',
+        pointerEvents: 'none', // never clickable — don't block the info page's Back button
+        opacity: booted && !infoOpen ? 1 : 0,
+        transition: 'opacity 0.35s ease',
       }}>
-        {infoOpen ? (
-          <>ESC &nbsp; BACK</>
-        ) : (
-          <>
-            ◀ ▶ &nbsp; NAVIGATE &nbsp;&nbsp; ▲ ▼ &nbsp; SELECT
-            {(activeSlug || activeInfo) && <> &nbsp;&nbsp; ENTER &nbsp; OPEN</>}
-          </>
-        )}
+        ◀ ▶ &nbsp; NAVIGATE &nbsp;&nbsp; ▲ ▼ &nbsp; SELECT
+        {(activeSlug || activeInfo) && <> &nbsp;&nbsp; ENTER &nbsp; OPEN</>}
       </div>
 
 {/* LCD PIXEL GRID OVERLAY */}

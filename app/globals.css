@@ -19,6 +19,7 @@ html, body {
   height: 100%;
   background: #050520;
   overflow: hidden;
+  overscroll-behavior: none; /* no swipe-to-go-back while scrolling the XMB */
   font-family: 'M PLUS Rounded 1c', sans-serif;
 }
 
@@ -32,23 +33,28 @@ html, body {
   to   { opacity: 0; }
 }
 
-/* PSP boot — black panels part from the centre line */
-@keyframes bootOpenUp {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-100%); }
-}
-
-@keyframes bootOpenDown {
-  from { transform: translateY(0); }
-  to   { transform: translateY(100%); }
-}
-
-@keyframes bootLineSpread {
-  from { opacity: 1; transform: scaleY(1); }
-  to   { opacity: 0; transform: scaleY(60); }
+/* PSP boot */
+@keyframes bootStreakIn {
+  from { opacity: 0; transform: scaleX(0.2); }
+  to   { opacity: 1; transform: scaleX(1); }
 }
 
 @keyframes bootPulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.45; }
+}
+
+/* XMB info panel — side strip beside the menu; takes the full screen on phones */
+@media (max-width: 720px) {
+  :root {
+    --xmb-strip-width: 100%;
+  }
+
+  .xmb-info-strip {
+    background: rgba(0, 0, 0, 0.85) !important; /* beats the inline desktop tint */
+  }
+
+  .xmb-info-row {
+    display: none !important; /* beats the row's inline display: flex */
+  }
 }

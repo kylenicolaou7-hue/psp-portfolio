@@ -8,7 +8,7 @@ export interface XMBItem {
   link?: string;
   // Enter opens /projects/[slug]
   slug?: string;
-  // Enter opens the slide-out information panel
+  // Enter opens the side information panel
   info?: XMBInfo;
   preview?: { video: string[]; background: string };
 }
@@ -89,9 +89,8 @@ export const XMB_CATEGORIES: XMBCategory[] = [
         sublabel: 'UX/UI · Interactive Designer',
         group: 'ABOUT',
         icon: '/icons/memory.png',
-        // Opens in the slide-out information panel instead of a case study
+        // Opens the side information panel instead of a case study
         info: {
-          heading: 'ABOUT',
           title: 'Kyle Nicolaou',
           subtitle: 'UX/UI · Interactive Designer',
           image: 'Kyle Nicolaou',

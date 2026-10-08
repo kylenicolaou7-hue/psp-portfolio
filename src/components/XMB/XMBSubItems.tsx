@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import type { XMBItem } from '@/data/xmb';
+import { ACTIVE_ANCHOR_X, ICON_SIZE_VH, ITEM_GAP_VH, ROW_TOP_VH, expandedShift } from './layout';
 
 interface XMBSubItemsProps {
   items: XMBItem[];
   activeItem: number;
+  // An item is open: slide left with the category bar and hide the labels
+  expanded?: boolean;
+  onSelect?: (index: number) => void;
 }
 
 // Preview box proportions — PSP ICON1 was 310×180
@@ -15,13 +19,11 @@ const PREVIEW_HEIGHT = 0.93;
 export default function XMBSubItems({
   items,
   activeItem,
+  expanded = false,
+  onSelect,
 }: XMBSubItemsProps) {
   // All vh based — scales with screen height
-  const ICON_SIZE_VH = 14;
   const ITEM_STEP_VH = 18;
-  const ACTIVE_ANCHOR_X = 250;
-  const ICON_BOTTOM_VH = 40;  // % from top — matches category bar
-  const GAP_VH = 10;
 
   const [iconPx, setIconPx] = useState(144);
   const [itemStepPx, setItemStepPx] = useState(180);
@@ -32,7 +34,7 @@ export default function XMBSubItems({
       const vh = window.innerHeight / 100;
       setIconPx(Math.round(ICON_SIZE_VH * vh));
       setItemStepPx(Math.round(ITEM_STEP_VH * vh));
-      setActivePx(Math.round((ICON_BOTTOM_VH / 100) * window.innerHeight + GAP_VH * vh));
+      setActivePx(Math.round((ROW_TOP_VH / 100) * window.innerHeight + ITEM_GAP_VH * vh));
     };
     update();
     window.addEventListener('resize', update);
@@ -46,6 +48,8 @@ export default function XMBSubItems({
       position: 'absolute',
       top: 0,
       left: `${containerLeft}px`,
+      transform: expanded ? `translateX(${-expandedShift(iconPx)}px)` : undefined,
+      transition: 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
       width: '600px',
       height: '100vh',
       zIndex: 5,
@@ -71,7 +75,9 @@ export default function XMBSubItems({
         return (
           <div
             key={idx}
+            onClick={() => onSelect?.(idx)}
             style={{
+              cursor: 'pointer',
               position: 'absolute',
               top: `${baseTop}px`,
               left: 0,
@@ -84,7 +90,8 @@ export default function XMBSubItems({
               transformOrigin: 'left top',
               transition: 'transform 0.25s ease, opacity 0.25s ease',
               width: '600px',
-              pointerEvents: isActive ? 'all' : 'none',
+              // Clickable unless faded out completely
+              pointerEvents: opacity > 0 ? 'auto' : 'none',
             }}
           >
             {/* ICON SLOT */}
@@ -158,12 +165,14 @@ export default function XMBSubItems({
 
             </div>
 
-            {/* TEXT */}
+            {/* TEXT — hidden while an item is open; its name moves to the panel row */}
             <div style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-start',
               gap: '0.2rem',
+              opacity: expanded ? 0 : 1,
+              transition: 'opacity 0.2s ease',
             }}>
               {isActive && item.group && (
                 <span style={{
