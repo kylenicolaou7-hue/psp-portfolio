@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useXMBSound } from '@/hooks/useXMBSound';
 
 // Recreates the PSP power-on sequence on one black screen:
 //   1. the name fades in between thin streak lines that gently ripple
@@ -131,12 +130,9 @@ function Key({ label }: { label: string }) {
 
 export default function XMBBoot({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<Phase>('intro');
-  const { playClick } = useXMBSound();
 
-  const start = useCallback(() => {
-    playClick();
-    setPhase('opening');
-  }, [playClick]);
+  // Start: the black fades into the XMB (silent — no start-up sound)
+  const start = useCallback(() => setPhase('opening'), []);
 
   // Controls appear under the name
   useEffect(() => {

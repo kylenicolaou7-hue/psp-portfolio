@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { XMB_CATEGORIES } from '@/data/xmb';
-import XMBBackground from './XMBBackground';
+import { XMB_CATEGORIES, type XMBOption } from '@/data/xmb';
+import XMBBackground, { type XMBRippleKind, type XMBRippleSignal } from './XMBBackground';
 import XMBStatusBar from './XMBStatusBar';
 import XMBCategoryBar from './XMBCategoryBar';
 import XMBSubItems from './XMBSubItems';
 import XMBInfoPanel from './XMBInfoPanel';
 import XMBBoot from './XMBBoot';
 import { useXMBSound } from '@/hooks/useXMBSound';
+import { setSetting, useXMBSettings } from '@/hooks/useXMBSettings';
 
 const LAUNCH_FADE_MS = 600;
 
@@ -40,57 +41,146 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
   const [activeCategory, setActiveCategory] = useState(() => findProject(initialProject).category);
   const [activeItem, setActiveItem] = useState(() => findProject(initialProject).item);
   const [launching, setLaunching] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
+  // Background feedback: an invisible ripple that bends the waves on each move / open
+  const [rippleSignal, setRippleSignal] = useState<XMBRippleSignal>();
+  const rippleFrom = useCallback((kind: XMBRippleKind) => {
+    setRippleSignal(prev => ({ id: (prev?.id ?? 0) + 1, kind }));
+  }, []);
+  const [panelOpen, setPanelOpen] = useState(false);
+  // Choice list in the side panel (Email, LinkedIn, CV…)
+  const [optionIndex, setOptionIndex] = useState(0);
+  const [optionFlash, setOptionFlash] = useState<string | null>(null);
   // Boot sequence plays on a fresh visit, not when returning from a case study
-  const [booted, setBooted] = useState(!!initialProject);
-  const finishBoot = useCallback(() => setBooted(true), []);
+  const settings = useXMBSettings();
+  const [bootDone, setBootDone] = useState(!!initialProject);
+  const finishBoot = useCallback(() => setBootDone(true), []);
+  // SETTINGS → Skip Intro goes straight to the menu
+  const booted = bootDone || settings.skipIntro;
   const { playClick } = useXMBSound();
   const router = useRouter();
 
-  const currentItems = XMB_CATEGORIES[activeCategory].items;
+  // Settings items show their current value (On / Off) as the sublabel
+  const currentItems = XMB_CATEGORIES[activeCategory].items.map(item =>
+    item.setting ? { ...item, sublabel: settings[item.setting] ? 'On' : 'Off' } : item,
+  );
   const activeItemData = currentItems[activeItem];
   const activeSlug = activeItemData?.slug;
   const activeInfo = activeItemData?.info;
+  const activeOptions = activeItemData?.options;
+  const activeSections = activeItemData?.sections;
+  // Choices and sections share the same up/down selection in the side panel
+  const listLength = (activeOptions ?? activeSections)?.length ?? 0;
 
-  const closeInfo = useCallback(() => {
+  const closePanel = useCallback(() => {
     playClick();
-    setInfoOpen(false);
+    setPanelOpen(false);
   }, [playClick]);
 
-  const canNavigate = booted && !launching && !infoOpen;
+  const canNavigate = booted && !launching && !panelOpen;
 
   const moveCategory = useCallback((next: number) => {
     if (next < 0 || next >= XMB_CATEGORIES.length || next === activeCategory) return;
     playClick();
+    rippleFrom('category');
     setActiveCategory(next);
     setActiveItem(0);
-  }, [activeCategory, playClick]);
+  }, [activeCategory, playClick, rippleFrom]);
 
   const moveItem = useCallback((next: number) => {
     if (next < 0 || next >= currentItems.length || next === activeItem) return;
     playClick();
+    rippleFrom('item');
     setActiveItem(next);
-  }, [activeItem, currentItems.length, playClick]);
+  }, [activeItem, currentItems.length, playClick, rippleFrom]);
 
   // Enter / click on the selected item: launch its case study or open its info panel
   const openActive = useCallback(() => {
+    if (!activeSlug && !activeInfo && !activeOptions && !activeSections) return;
+    playClick();
+    rippleFrom('open');
     if (activeSlug) {
-      playClick();
       setLaunching(true);
-    } else if (activeInfo) {
-      playClick();
-      setInfoOpen(true);
+    } else {
+      // A setting opens with its current value in the band
+      const current = activeItemData?.setting
+        ? activeOptions?.findIndex(o => o.action.type === 'setting' && o.action.value === settings[activeItemData.setting!])
+        : 0;
+      setOptionIndex(Math.max(0, current ?? 0));
+      setOptionFlash(null);
+      setPanelOpen(true);
     }
-  }, [activeSlug, activeInfo, playClick]);
+  }, [activeSlug, activeInfo, activeOptions, activeSections, activeItemData, settings, playClick, rippleFrom]);
+
+  const moveOption = useCallback((next: number) => {
+    if (next < 0 || next >= listLength || next === optionIndex) return;
+    playClick();
+    rippleFrom('item');
+    setOptionFlash(null);
+    setOptionIndex(next);
+  }, [listLength, optionIndex, playClick, rippleFrom]);
+
+  // Run a choice: copy to the clipboard (with a confirmation in the band) or follow a link
+  const runOption = useCallback((option: XMBOption) => {
+    const { action } = option;
+    if (action.type === 'setting') {
+      // Apply first, so turning Sound on is confirmed with a tink (and off is silent),
+      // then return to the menu like confirming a PSP setting
+      setSetting(action.key, action.value);
+      playClick();
+      setPanelOpen(false);
+      return;
+    }
+    playClick();
+    rippleFrom('open');
+    if (action.type === 'copy') {
+      navigator.clipboard.writeText(action.value)
+        .then(() => setOptionFlash(action.done))
+        .catch(() => setOptionFlash('Copy failed'));
+    } else if (action.download) {
+      const a = document.createElement('a');
+      a.href = action.href;
+      a.download = '';
+      a.click();
+    } else if (action.newTab) {
+      window.open(action.href, '_blank', 'noopener,noreferrer');
+    } else {
+      window.location.href = action.href; // mailto: hands over to the mail app
+    }
+  }, [playClick, rippleFrom]);
+
+  // Clicking a choice or section selects it; clicking the selected choice runs it
+  const clickOption = useCallback((index: number) => {
+    if (index !== optionIndex) moveOption(index);
+    else if (activeOptions) runOption(activeOptions[index]);
+  }, [activeOptions, optionIndex, runOption, moveOption]);
+
+  // Confirmation messages fade back to the choice's label
+  useEffect(() => {
+    if (!optionFlash) return;
+    const timer = setTimeout(() => setOptionFlash(null), 1600);
+    return () => clearTimeout(timer);
+  }, [optionFlash]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!booted || launching) return;
 
-    // While the info panel is open, only Escape (close) is handled
-    if (infoOpen) {
+    // While the side panel is open: Escape closes it; a choice list also takes
+    // up/down to move and Enter to run the selected choice
+    if (panelOpen) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        closeInfo();
+        closePanel();
+      } else if (listLength) {
+        if (['ArrowUp', 'w', 'W'].includes(e.key)) {
+          e.preventDefault();
+          moveOption(optionIndex - 1);
+        } else if (['ArrowDown', 's', 'S'].includes(e.key)) {
+          e.preventDefault();
+          moveOption(optionIndex + 1);
+        } else if (e.key === 'Enter' && activeOptions) {
+          e.preventDefault();
+          runOption(activeOptions[optionIndex]);
+        }
       }
       return;
     }
@@ -125,7 +215,7 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
         openActive();
         break;
     }
-  }, [booted, launching, infoOpen, closeInfo, activeCategory, activeItem, moveCategory, moveItem, openActive]);
+  }, [booted, launching, panelOpen, closePanel, activeOptions, listLength, optionIndex, moveOption, runOption, activeCategory, activeItem, moveCategory, moveItem, openActive]);
 
   // Mouse: clicking a category selects it; clicking an item selects it, and
   // clicking the already-selected item opens it (like pressing Enter)
@@ -200,7 +290,10 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
     }}>
 
       {/* ANIMATED BACKGROUND */}
-      <XMBBackground backgroundImage={activeItemData?.preview?.background} />
+      <XMBBackground
+        backgroundImage={activeItemData?.preview?.background}
+        ripple={rippleSignal}
+      />
 
       {/* STATUS BAR */}
       <XMBStatusBar />
@@ -218,7 +311,7 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
         <XMBCategoryBar
           categories={XMB_CATEGORIES}
           activeIndex={activeCategory}
-          expanded={infoOpen}
+          expanded={panelOpen}
           onSelect={clickCategory}
         />
 
@@ -226,7 +319,7 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
         <XMBSubItems
           items={currentItems}
           activeItem={activeItem}
-          expanded={infoOpen}
+          expanded={panelOpen}
           onSelect={clickItem}
         />
       </div>
@@ -236,8 +329,13 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
         label={activeItemData?.label ?? ''}
         icon={activeItemData?.icon}
         info={activeInfo}
-        open={infoOpen}
-        onClose={closeInfo}
+        options={activeOptions}
+        sections={activeSections}
+        optionIndex={optionIndex}
+        optionFlash={optionFlash}
+        onOption={clickOption}
+        open={panelOpen}
+        onClose={closePanel}
       />
 
       {/* BOTTOM NAV HINT */}
@@ -254,11 +352,11 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
         whiteSpace: 'nowrap',
         zIndex: 16,
         pointerEvents: 'none', // never clickable — don't block the info page's Back button
-        opacity: booted && !infoOpen ? 1 : 0,
+        opacity: booted && !panelOpen ? 1 : 0,
         transition: 'opacity 0.35s ease',
       }}>
         ◀ ▶ &nbsp; NAVIGATE &nbsp;&nbsp; ▲ ▼ &nbsp; SELECT
-        {(activeSlug || activeInfo) && <> &nbsp;&nbsp; ENTER &nbsp; OPEN</>}
+        {(activeSlug || activeInfo || activeOptions || activeSections) && <> &nbsp;&nbsp; ENTER &nbsp; OPEN</>}
       </div>
 
 {/* LCD PIXEL GRID OVERLAY */}

@@ -58,3 +58,8 @@ html, body {
     display: none !important; /* beats the row's inline display: flex */
   }
 }
+
+/* Scrollable side-panel text: no visible scrollbar (the bottom fade signals more) */
+.xmb-info-text::-webkit-scrollbar {
+  display: none;
+}

@@ -1,4 +1,5 @@
 import type { XMBInfo } from '@/components/XMB/XMBInfoPanel';
+import type { XMBSettingKey } from '@/hooks/useXMBSettings';
 
 export interface XMBItem {
   label: string;
@@ -10,7 +11,33 @@ export interface XMBItem {
   slug?: string;
   // Enter opens the side information panel
   info?: XMBInfo;
+  // Enter opens the side panel as a PSP-style list of choices (with `info`
+  // too, the info shows as a status block above the list)
+  options?: XMBOption[];
+  // Enter opens the side panel as a list of sections; the selected one expands
+  // beneath the band to show its details
+  sections?: XMBSection[];
   preview?: { video: string[]; background: string };
+  // A SETTINGS item: its sublabel shows the current value (On / Off)
+  setting?: XMBSettingKey;
+}
+
+// What a choice in the side panel does
+export type XMBAction =
+  | { type: 'copy'; value: string; done: string }               // copy to clipboard, then confirm
+  | { type: 'link'; href: string; newTab?: boolean; download?: boolean }
+  | { type: 'setting'; key: XMBSettingKey; value: boolean };           // change a SETTINGS value
+
+export interface XMBOption {
+  label: string;
+  detail?: string; // second line shown while the choice is selected
+  action: XMBAction;
+}
+
+export interface XMBSection {
+  label: string;
+  fields?: { label: string; value: string }[]; // label / value rows, like PSP System Information
+  tags?: string[];                             // short items shown as tags
 }
 
 export interface XMBCategory {
@@ -48,10 +75,42 @@ export const XMB_CATEGORIES: XMBCategory[] = [
   },
    
   {
-  id: 'settings',
-  label: 'SETTINGS',
-  icon: '/icons/settings.png',
-  items: [],
+    id: 'settings',
+    label: 'SETTINGS',
+    icon: '/icons/settings.png',
+    // Off / On lists, as on the PSP's settings screens
+    items: [
+      {
+        label: 'Sound',
+        group: 'SETTINGS',
+        icon: '/icons/tools.png',
+        setting: 'sound',
+        options: [
+          { label: 'Off', detail: 'Navigate in silence', action: { type: 'setting', key: 'sound', value: false } },
+          { label: 'On', detail: 'A soft tink as you move', action: { type: 'setting', key: 'sound', value: true } },
+        ],
+      },
+      {
+        label: 'Background Effects',
+        group: 'SETTINGS',
+        icon: '/icons/tools.png',
+        setting: 'effects',
+        options: [
+          { label: 'Off', detail: 'A calm, still background', action: { type: 'setting', key: 'effects', value: false } },
+          { label: 'On', detail: 'Ripples move through the waves', action: { type: 'setting', key: 'effects', value: true } },
+        ],
+      },
+      {
+        label: 'Skip Intro',
+        group: 'SETTINGS',
+        icon: '/icons/tools.png',
+        setting: 'skipIntro',
+        options: [
+          { label: 'Off', detail: 'Play the start-up animation', action: { type: 'setting', key: 'skipIntro', value: false } },
+          { label: 'On', detail: 'Go straight to the menu next time', action: { type: 'setting', key: 'skipIntro', value: true } },
+        ],
+      },
+    ],
   },
 
   {
@@ -60,22 +119,23 @@ export const XMB_CATEGORIES: XMBCategory[] = [
     icon: '/icons/camera.png',
     items: [
       {
-        label: 'Education',
-        sublabel: 'Media Design School · Bachelor of Media Design',
+        label: 'Education & Skills',
+        sublabel: 'Media Design School · Technical · Platforms',
         group: 'INFO',
         icon: '/icons/memory.png',
-      },
-      {
-        label: 'Technicals',
-        sublabel: 'Skills · Tools · Stack',
-        group: 'INFO',
-        icon: '/icons/memory.png',
-      },
-      {
-        label: 'Platforms',
-        sublabel: 'Where I Work',
-        group: 'INFO',
-        icon: '/icons/memory.png',
+        sections: [
+          {
+            label: 'Education',
+            fields: [
+              { label: 'Institution', value: 'Media Design School' },
+              { label: 'Qualification', value: 'Bachelor of Media Design' },
+              { label: 'Major', value: 'Interactive UX/UI' },
+              { label: 'Location', value: 'Auckland, New Zealand' },
+            ],
+          },
+          { label: 'Technical', tags: ['HTML', 'CSS', 'JavaScript', 'React', 'Next.js', 'Three.js', 'AI Tools'] },
+          { label: 'Platforms', tags: ['Figma', 'TouchDesigner', 'Illustrator', 'Photoshop', 'Blender', 'Wix'] },
+        ],
       },
     ],
   },
@@ -94,7 +154,7 @@ export const XMB_CATEGORIES: XMBCategory[] = [
           title: 'Kyle Nicolaou',
           subtitle: 'UX/UI · Interactive Designer',
           image: 'Kyle Nicolaou',
-          body: "Hello, I'm Kyle — a 22 year old interactive designer focused on creating eye-capturing visual and user focused design in the interactive space.",
+          body: "Hello, I'm Kyle — a 22 year old interactive designer focused on creating eye-capturing visual and user focused design in the interactive space. I'm a highly creative person who loves bringing ideas to life, using design and UX/UI principles to turn them into experiences that feel intuitive and engaging. I'm especially drawn to 3D experiences on the web and across the interactive space, and I care about carrying a high-end finish through every step of the process.",
         },
       },
       {
@@ -183,22 +243,24 @@ export const XMB_CATEGORIES: XMBCategory[] = [
     icon: '/icons/network.png',
     items: [
       {
-        label: 'Email',
-        sublabel: 'kylenicolaou7@gmail.com',
+        label: 'Get in Touch',
+        sublabel: 'Open to work · Auckland, NZ',
         group: 'CONTACT',
         icon: '/icons/web.png',
-      },
-      {
-        label: 'LinkedIn',
-        sublabel: 'kyle-nicolaou',
-        group: 'CONTACT',
-        icon: '/icons/web.png',
-      },
-      {
-        label: 'Download CV',
-        sublabel: 'PDF · 2025',
-        group: 'CONTACT',
-        icon: '/icons/web.png',
+        info: {
+          title: 'Open to work',
+          subtitle: 'Auckland, New Zealand',
+          available: true,
+          timeZone: 'Pacific/Auckland',
+        },
+        options: [
+          { label: 'Email Me', detail: 'kylenicolaou7@gmail.com', action: { type: 'link', href: 'mailto:kylenicolaou7@gmail.com' } },
+          { label: 'Copy Email Address', detail: 'kylenicolaou7@gmail.com', action: { type: 'copy', value: 'kylenicolaou7@gmail.com', done: 'Email copied ✓' } },
+          { label: 'LinkedIn Profile', detail: 'linkedin.com/in/kyle-nicolaou · new tab', action: { type: 'link', href: 'https://www.linkedin.com/in/kyle-nicolaou-30440232b/', newTab: true } },
+          { label: 'Copy LinkedIn Link', detail: 'linkedin.com/in/kyle-nicolaou', action: { type: 'copy', value: 'https://www.linkedin.com/in/kyle-nicolaou-30440232b/', done: 'Link copied ✓' } },
+          { label: 'Download CV', detail: 'PDF · 2025', action: { type: 'link', href: '/files/kyle-nicolaou-cv.pdf', download: true } },
+          { label: 'View CV', detail: 'Opens in a new tab', action: { type: 'link', href: '/files/kyle-nicolaou-cv.pdf', newTab: true } },
+        ],
       },
     ],
   },
