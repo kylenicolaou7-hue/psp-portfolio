@@ -33,6 +33,8 @@ const EASE = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
 // Width + tint live here so the strip never depends on globals.css loading;
 // globals.css only overrides them on phones (full width, darker)
 const STRIP_WIDTH = 'var(--xmb-strip-width, clamp(300px, 34vw, 480px))';
+// A list of colour swatches (Theme) uses a narrow strip on every screen, as on the PSP
+const SWATCH_STRIP_WIDTH = 'clamp(72px, 8vw, 110px)';
 const ROW_Y = `${ACTIVE_ROW_CENTER_VH}vh`;
 const BAND_HALF = '1.5rem';
 const BAND_HEIGHT = `calc(${BAND_HALF} * 2)`;
@@ -97,6 +99,8 @@ export default function XMBInfoPanel({
   const hasList = !!(options || sections);
   const status = hasList ? info : undefined;
   const details = hasList ? undefined : info;
+  const swatches = !!options?.length && options.every(o => o.swatch);
+  const stripWidth = swatches ? SWATCH_STRIP_WIDTH : STRIP_WIDTH;
 
   return (
     <div
@@ -113,11 +117,11 @@ export default function XMBInfoPanel({
       }}
     >
       {/* ROW — ◂ arrow, icon and name, underlined up to the strip */}
-      <div className="xmb-info-row" style={{
+      <div className={swatches ? undefined : 'xmb-info-row'} style={{
         position: 'absolute',
         top: ROW_Y,
         left: `calc(${EXPANDED_MARGIN_PX}px + ${ICON_SIZE_VH}vh + 0.75rem)`,
-        right: STRIP_WIDTH,
+        right: stripWidth,
         transform: 'translateY(-50%)',
         display: 'flex',
         alignItems: 'center',
@@ -151,12 +155,12 @@ export default function XMBInfoPanel({
       </div>
 
       {/* STRIP — tinted panel from the right */}
-      <aside className="xmb-info-strip" style={{
+      <aside className={swatches ? undefined : 'xmb-info-strip'} style={{
         position: 'absolute',
         top: 0,
         right: 0,
         bottom: 0,
-        width: STRIP_WIDTH,
+        width: stripWidth,
         background: 'rgba(0,0,0,0.14)',
         transform: open ? 'translateX(0)' : 'translateX(100%)',
         transition: `transform 0.35s ${EASE}`,
@@ -282,6 +286,7 @@ export default function XMBInfoPanel({
                   type="button"
                   role="option"
                   aria-selected={selected}
+                  aria-label={option.swatch ? option.label : undefined}
                   onClick={() => onOption?.(i)}
                   style={{
                     display: 'flex',
@@ -291,19 +296,35 @@ export default function XMBInfoPanel({
                     width: '100%',
                     height: BAND_HEIGHT,
                     padding: '0 1.25rem',
+                    alignItems: option.swatch ? 'center' : undefined,
                     background: 'transparent',
                     border: 'none',
                     color: '#fff',
-                    opacity: selected ? 1 : Math.max(0.2, 0.6 - (distance - 1) * 0.12),
+                    // Swatches stay near full strength so the colours read true
+                    opacity: selected ? 1 : option.swatch ? 0.85 : Math.max(0.2, 0.6 - (distance - 1) * 0.12),
                     fontFamily: FONT,
                     textAlign: 'left',
                     cursor: 'pointer',
                     transition: 'opacity 0.2s ease',
                   }}
                 >
-                  <span style={{ fontSize: '1.05rem', lineHeight: 1.2, letterSpacing: '0.03em' }}>
-                    {selected && optionFlash ? optionFlash : option.label}
-                  </span>
+                  {option.swatch ? (
+                    <span aria-hidden style={{
+                      width: '2.1rem',
+                      height: '2.1rem',
+                      borderRadius: '2px',
+                      background: option.swatch,
+                      boxShadow: selected
+                        ? '0 0 0 1.5px rgba(255,255,255,0.95), 0 0 12px rgba(255,255,255,0.45)'
+                        : 'inset 0 0 0 1px rgba(255,255,255,0.35)',
+                      transform: selected ? 'scale(1.06)' : 'none',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    }} />
+                  ) : (
+                    <span style={{ fontSize: '1.05rem', lineHeight: 1.2, letterSpacing: '0.03em' }}>
+                      {selected && optionFlash ? optionFlash : option.label}
+                    </span>
+                  )}
                   {selected && option.detail && !optionFlash && (
                     <span style={{ fontSize: '0.68rem', lineHeight: 1.2, letterSpacing: '0.05em', color: 'rgba(255,255,255,0.7)' }}>
                       {option.detail}
@@ -471,11 +492,13 @@ export default function XMBInfoPanel({
           onClick={onClose}
           style={{
             position: 'absolute',
-            left: '1rem',
             bottom: '1rem',
+            // The narrow swatch strip stacks the key over its label, centred
+            ...(swatches
+              ? { left: '50%', transform: 'translateX(-50%)', flexDirection: 'column', gap: '0.3rem' }
+              : { left: '1rem', gap: '0.5rem' }),
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.5rem',
             padding: '0.25rem',
             background: 'transparent',
             border: 'none',

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { MediaSlot, Project } from '@/data/projects';
 import XMBStatusBar from '@/components/XMB/XMBStatusBar';
 import { useXMBSound } from '@/hooks/useXMBSound';
+import { useXMBSettings } from '@/hooks/useXMBSettings';
+import { getTheme } from '@/data/themes';
 
 const FADE_MS = 600;
 const HEADING_FONT = "'NewRodin', sans-serif";
@@ -32,6 +34,8 @@ export default function CaseStudy({ project }: { project: Project }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [leaving, setLeaving] = useState(false);
   const { playClick } = useXMBSound();
+  // Top glow picks up the colour of the chosen theme
+  const [r, g, b] = getTheme(useXMBSettings().theme).gradient[0];
 
   const backHref = `/?project=${project.slug}`;
 
@@ -74,7 +78,7 @@ export default function CaseStudy({ project }: { project: Project }) {
         inset: 0,
         overflowY: 'auto',
         outline: 'none',
-        background: 'radial-gradient(ellipse at top, rgba(230,92,0,0.12), transparent 60%), #0b0b10',
+        background: `radial-gradient(ellipse at top, rgba(${r},${g},${b},0.12), transparent 60%), #0b0b10`,
         color: 'rgba(255,255,255,0.85)',
         fontFamily: BODY_FONT,
       }}

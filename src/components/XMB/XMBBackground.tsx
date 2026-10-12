@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { getSettings } from '@/hooks/useXMBSettings';
+import type { RGB, XMBTheme } from '@/data/themes';
 import { ACTIVE_ANCHOR_X, ACTIVE_ROW_CENTER_VH, ROW_TOP_VH } from './layout';
 
 // ── Ripple tuning ───────────────────────────────────────────────────────────
@@ -30,7 +31,21 @@ const LENS_MAX_RINGS = 3;   // only the strongest rings refract — keeps rapid 
 
 export interface XMBRippleSignal { id: number; kind: XMBRippleKind }
 
+// Switching theme blends every colour across to the new palette
+const THEME_FADE_MS = 900;
+type Palette = { gradient: RGB[]; waves: RGB[]; glow: RGB[] };
+const toPalette = (t: XMBTheme): Palette => ({ gradient: [...t.gradient], waves: [...t.waves], glow: [...t.glow] });
+const mixRGB = (a: RGB, b: RGB, p: number): RGB => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * p) as unknown as RGB;
+const mixPalette = (a: Palette, b: Palette, p: number): Palette => ({
+  gradient: a.gradient.map((c, i) => mixRGB(c, b.gradient[i], p)),
+  waves: a.waves.map((c, i) => mixRGB(c, b.waves[i], p)),
+  glow: a.glow.map((c, i) => mixRGB(c, b.glow[i], p)),
+});
+const rgba = ([r, g, b]: RGB, a: number) => `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
+
 interface XMBBackgroundProps {
+  // Colour theme from THEME / settings
+  theme: XMBTheme;
   // PIC1-style image that replaces the waves while an item is highlighted
   backgroundImage?: string;
   // Changes on each move or open — sends a ripple out from the active icon
@@ -42,12 +57,26 @@ const prefersReducedMotion = () =>
 
 const easeOut = (p: number) => 1 - Math.pow(1 - p, 2);
 
-export default function XMBBackground({ backgroundImage, ripple }: XMBBackgroundProps) {
+export default function XMBBackground({ theme, backgroundImage, ripple }: XMBBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number>(0);
   const timeRef = useRef<number>(0);
   const pausedRef = useRef(false);
   const ripplesRef = useRef<{ kind: XMBRippleKind; start: number }[]>([]);
+  // Palette drawn last frame, and the blend towards the current theme
+  const paletteRef = useRef<Palette | null>(null);
+  const blendRef = useRef<{ from: Palette; to: Palette; start: number } | null>(null);
+
+  useEffect(() => {
+    const to = toPalette(theme);
+    const from = paletteRef.current;
+    if (!from || prefersReducedMotion()) {
+      paletteRef.current = to;
+      blendRef.current = null;
+    } else {
+      blendRef.current = { from, to, start: performance.now() };
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (!ripple || prefersReducedMotion() || !getSettings().effects) return; // SETTINGS → Background Effects
@@ -120,24 +149,30 @@ export default function XMBBackground({ backgroundImage, ripple }: XMBBackground
         return dy;
       };
 
-      // Preset 15 — #E65C00 #D93600 #CC0000 — orange to red fire
+      // Theme colours, mid-blend if the theme just changed
+      const blend = blendRef.current;
+      if (blend) {
+        const p = Math.min(1, (now - blend.start) / THEME_FADE_MS);
+        paletteRef.current = mixPalette(blend.from, blend.to, p * p * (3 - 2 * p));
+        if (p >= 1) blendRef.current = null;
+      }
+      const palette = paletteRef.current!;
+
       const bg = ctx.createLinearGradient(0, 0, 0, h);
-      bg.addColorStop(0,   '#E65C00');
-      bg.addColorStop(0.4, '#D93600');
-      bg.addColorStop(0.7, '#CC0000');
-      bg.addColorStop(1,   '#8a0000');
+      [0, 0.4, 0.7, 1].forEach((stop, i) => bg.addColorStop(stop, rgba(palette.gradient[i], 1)));
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
 
       const waves = [
-        { yBase: 0.3,  amp1: 60, freq1: 0.003,  speed1: 0.4,  phase1: 0.0, amp2: 25, freq2: 0.006, speed2: 0.25, phase2: 1.0, colour: 'rgba(255,120,30,0.18)'  },
-        { yBase: 0.45, amp1: 70, freq1: 0.0035, speed1: 0.5,  phase1: 2.0, amp2: 30, freq2: 0.007, speed2: 0.3,  phase2: 0.5, colour: 'rgba(230,90,20,0.22)'   },
-        { yBase: 0.55, amp1: 65, freq1: 0.004,  speed1: 0.45, phase1: 1.0, amp2: 28, freq2: 0.008, speed2: 0.28, phase2: 2.5, colour: 'rgba(210,60,10,0.25)'   },
-        { yBase: 0.65, amp1: 55, freq1: 0.0045, speed1: 0.55, phase1: 3.0, amp2: 22, freq2: 0.009, speed2: 0.35, phase2: 1.5, colour: 'rgba(200,40,0,0.28)'    },
-        { yBase: 0.78, amp1: 45, freq1: 0.005,  speed1: 0.6,  phase1: 0.5, amp2: 18, freq2: 0.01,  speed2: 0.4,  phase2: 2.0, colour: 'rgba(180,20,0,0.3)'     },
+        { yBase: 0.3,  amp1: 60, freq1: 0.003,  speed1: 0.4,  phase1: 0.0, amp2: 25, freq2: 0.006, speed2: 0.25, phase2: 1.0, alpha: 0.18 },
+        { yBase: 0.45, amp1: 70, freq1: 0.0035, speed1: 0.5,  phase1: 2.0, amp2: 30, freq2: 0.007, speed2: 0.3,  phase2: 0.5, alpha: 0.22 },
+        { yBase: 0.55, amp1: 65, freq1: 0.004,  speed1: 0.45, phase1: 1.0, amp2: 28, freq2: 0.008, speed2: 0.28, phase2: 2.5, alpha: 0.25 },
+        { yBase: 0.65, amp1: 55, freq1: 0.0045, speed1: 0.55, phase1: 3.0, amp2: 22, freq2: 0.009, speed2: 0.35, phase2: 1.5, alpha: 0.28 },
+        { yBase: 0.78, amp1: 45, freq1: 0.005,  speed1: 0.6,  phase1: 0.5, amp2: 18, freq2: 0.01,  speed2: 0.4,  phase2: 2.0, alpha: 0.3 },
       ];
 
-      waves.forEach((wave) => {
+      waves.forEach((wave, i) => {
+        const colour = palette.waves[i];
         const points: [number, number][] = [];
         for (let x = 0; x <= w; x += 3) {
           const y =
@@ -151,7 +186,7 @@ export default function XMBBackground({ backgroundImage, ripple }: XMBBackground
         points.forEach(([x, y]) => ctx.lineTo(x, y));
         ctx.lineTo(w, h);
         ctx.closePath();
-        ctx.fillStyle = wave.colour;
+        ctx.fillStyle = rgba(colour, wave.alpha);
         ctx.fill();
 
         ctx.beginPath();
@@ -159,15 +194,15 @@ export default function XMBBackground({ backgroundImage, ripple }: XMBBackground
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
-        ctx.strokeStyle = wave.colour.replace(/[\d.]+\)$/, '0.5)');
+        ctx.strokeStyle = rgba(colour, 0.5);
         ctx.lineWidth = 1.5;
         ctx.stroke();
       });
 
-      // Centre glow — orange tinted
+      // Centre glow, tinted to the theme
       const centreGlow = ctx.createRadialGradient(w * 0.5, h * 0.45, 0, w * 0.5, h * 0.45, w * 0.6);
-      centreGlow.addColorStop(0,   'rgba(255,120,30,0.15)');
-      centreGlow.addColorStop(0.5, 'rgba(210,60,0,0.05)');
+      centreGlow.addColorStop(0,   rgba(palette.glow[0], 0.15));
+      centreGlow.addColorStop(0.5, rgba(palette.glow[1], 0.05));
       centreGlow.addColorStop(1,   'rgba(0,0,0,0)');
       ctx.fillStyle = centreGlow;
       ctx.fillRect(0, 0, w, h);

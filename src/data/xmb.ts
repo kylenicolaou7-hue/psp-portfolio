@@ -1,5 +1,6 @@
 import type { XMBInfo } from '@/components/XMB/XMBInfoPanel';
 import type { XMBSettingKey } from '@/hooks/useXMBSettings';
+import { XMB_THEMES, type XMBThemeId } from './themes';
 
 export interface XMBItem {
   label: string;
@@ -26,11 +27,13 @@ export interface XMBItem {
 export type XMBAction =
   | { type: 'copy'; value: string; done: string }               // copy to clipboard, then confirm
   | { type: 'link'; href: string; newTab?: boolean; download?: boolean }
-  | { type: 'setting'; key: XMBSettingKey; value: boolean };           // change a SETTINGS value
+  | { type: 'setting'; key: XMBSettingKey; value: boolean }            // change a SETTINGS value
+  | { type: 'theme'; value: XMBThemeId };                              // change the background colour
 
 export interface XMBOption {
   label: string;
   detail?: string; // second line shown while the choice is selected
+  swatch?: string; // CSS background — shows the choice as a colour swatch instead of text
   action: XMBAction;
 }
 
@@ -52,28 +55,22 @@ export const XMB_CATEGORIES: XMBCategory[] = [
     id: 'theme',
     label: 'THEME',
     icon: '/icons/theme.png',
+    // As on the PSP: one Theme item opening a narrow strip of colour swatches.
+    // The background previews each colour as it passes through the band.
     items: [
       {
-        label: 'Dark Mode',
-        sublabel: 'Default Theme',
+        label: 'Theme',
         group: 'THEME',
         icon: '/icons/display.png',
-      },
-      {
-        label: 'Light Mode',
-        sublabel: 'Minimal Theme',
-        group: 'THEME',
-        icon: '/icons/display.png',
-      },
-      {
-        label: 'Custom',
-        sublabel: 'Build Your Own',
-        group: 'THEME',
-        icon: '/icons/display.png',
+        options: XMB_THEMES.map(theme => ({
+          label: theme.label,
+          swatch: `linear-gradient(to bottom, ${theme.gradient.map(c => `rgb(${c.join(',')})`).join(', ')})`,
+          action: { type: 'theme', value: theme.id },
+        })),
       },
     ],
   },
-   
+
   {
     id: 'settings',
     label: 'SETTINGS',

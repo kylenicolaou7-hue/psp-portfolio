@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { XMB_CATEGORIES, type XMBOption } from '@/data/xmb';
+import { getTheme } from '@/data/themes';
 import XMBBackground, { type XMBRippleKind, type XMBRippleSignal } from './XMBBackground';
 import XMBStatusBar from './XMBStatusBar';
 import XMBCategoryBar from './XMBCategoryBar';
@@ -59,9 +60,11 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
   const { playClick } = useXMBSound();
   const router = useRouter();
 
-  // Settings items show their current value (On / Off) as the sublabel
+  // Settings items show their current value as the sublabel (On / Off, or the theme colour)
   const currentItems = XMB_CATEGORIES[activeCategory].items.map(item =>
-    item.setting ? { ...item, sublabel: settings[item.setting] ? 'On' : 'Off' } : item,
+    item.setting ? { ...item, sublabel: settings[item.setting] ? 'On' : 'Off' }
+    : item.options?.[0]?.action.type === 'theme' ? { ...item, sublabel: getTheme(settings.theme).label }
+    : item,
   );
   const activeItemData = currentItems[activeItem];
   const activeSlug = activeItemData?.slug;
@@ -70,6 +73,9 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
   const activeSections = activeItemData?.sections;
   // Choices and sections share the same up/down selection in the side panel
   const listLength = (activeOptions ?? activeSections)?.length ?? 0;
+  // While the theme strip is open, the background previews the colour in the band
+  const bandAction = panelOpen ? activeOptions?.[optionIndex]?.action : undefined;
+  const shownTheme = bandAction?.type === 'theme' ? bandAction.value : settings.theme;
 
   const closePanel = useCallback(() => {
     playClick();
@@ -102,14 +108,14 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
       setLaunching(true);
     } else {
       // A setting opens with its current value in the band
-      const current = activeItemData?.setting
-        ? activeOptions?.findIndex(o => o.action.type === 'setting' && o.action.value === settings[activeItemData.setting!])
-        : 0;
+      const current = activeOptions?.findIndex(({ action }) =>
+        (action.type === 'setting' && action.value === settings[action.key]) ||
+        (action.type === 'theme' && action.value === settings.theme));
       setOptionIndex(Math.max(0, current ?? 0));
       setOptionFlash(null);
       setPanelOpen(true);
     }
-  }, [activeSlug, activeInfo, activeOptions, activeSections, activeItemData, settings, playClick, rippleFrom]);
+  }, [activeSlug, activeInfo, activeOptions, activeSections, settings, playClick, rippleFrom]);
 
   const moveOption = useCallback((next: number) => {
     if (next < 0 || next >= listLength || next === optionIndex) return;
@@ -122,10 +128,11 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
   // Run a choice: copy to the clipboard (with a confirmation in the band) or follow a link
   const runOption = useCallback((option: XMBOption) => {
     const { action } = option;
-    if (action.type === 'setting') {
+    if (action.type === 'setting' || action.type === 'theme') {
       // Apply first, so turning Sound on is confirmed with a tink (and off is silent),
       // then return to the menu like confirming a PSP setting
-      setSetting(action.key, action.value);
+      if (action.type === 'setting') setSetting(action.key, action.value);
+      else setSetting('theme', action.value);
       playClick();
       setPanelOpen(false);
       return;
@@ -291,6 +298,7 @@ export default function XMBScreen({ initialProject }: XMBScreenProps) {
 
       {/* ANIMATED BACKGROUND */}
       <XMBBackground
+        theme={getTheme(shownTheme)}
         backgroundImage={activeItemData?.preview?.background}
         ripple={rippleSignal}
       />
